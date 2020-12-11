@@ -141,23 +141,19 @@ public class SegmentV1V2ToV3FormatConverter implements SegmentFormatConverter {
       Set<String> allColumns = v2Metadata.getAllColumns();
       try (SegmentDirectory.Reader v2DataReader = v2Segment.createReader();
           SegmentDirectory.Writer v3DataWriter = v3Segment.createWriter()) {
-
         for (String column : allColumns) {
-          LOGGER.debug("Converting segment: {} , column: {}", v2Directory, column);
-          if (v2Metadata.hasDictionary(column)) {
-            copyDictionary(v2DataReader, v3DataWriter, column);
-          }
-          copyForwardIndex(v2DataReader, v3DataWriter, column);
-          if (v2DataReader.hasIndexFor(column, ColumnIndexType.NULLVALUE_VECTOR)) {
-            copyNullValueVector(v2DataReader, v3DataWriter, column);
-          }
+          copyIndexIfExists(v2DataReader, v3DataWriter, column, ColumnIndexType.DICTIONARY);
+          copyIndexIfExists(v2DataReader, v3DataWriter, column, ColumnIndexType.FORWARD_INDEX);
+          copyIndexIfExists(v2DataReader, v3DataWriter, column, ColumnIndexType.NULLVALUE_VECTOR);
         }
 
-        // inverted indexes are intentionally stored at the end of the single file
+        // Inverted and json indexes are intentionally stored at the end of the single file
         for (String column : allColumns) {
-          copyExistingInvertedIndex(v2DataReader, v3DataWriter, column);
+          copyIndexIfExists(v2DataReader, v3DataWriter, column, ColumnIndexType.INVERTED_INDEX);
+          copyIndexIfExists(v2DataReader, v3DataWriter, column, ColumnIndexType.JSON_INDEX);
         }
-        v3DataWriter.saveAndClose();
+
+        v3DataWriter.save();
       }
     }
 
@@ -171,6 +167,14 @@ public class SegmentV1V2ToV3FormatConverter implements SegmentFormatConverter {
       FileUtils.copyFile(indexFile, new File(dest, StarTreeV2Constants.INDEX_FILE_NAME));
       FileUtils.copyFile(new File(src, StarTreeV2Constants.INDEX_MAP_FILE_NAME),
           new File(dest, StarTreeV2Constants.INDEX_MAP_FILE_NAME));
+    }
+  }
+
+  private void copyIndexIfExists(SegmentDirectory.Reader reader, SegmentDirectory.Writer writer, String column,
+      ColumnIndexType indexType)
+      throws IOException {
+    if (reader.hasIndexFor(column, indexType)) {
+      readCopyBuffers(reader, writer, column, indexType);
     }
   }
 
@@ -189,7 +193,7 @@ public class SegmentV1V2ToV3FormatConverter implements SegmentFormatConverter {
     readCopyBuffers(reader, writer, column, ColumnIndexType.NULLVALUE_VECTOR);
   }
 
-  private void copyExistingInvertedIndex(SegmentDirectory.Reader reader, SegmentDirectory.Writer writer, String column)
+  private void copyInvertedIndex(SegmentDirectory.Reader reader, SegmentDirectory.Writer writer, String column)
       throws IOException {
     if (reader.hasIndexFor(column, ColumnIndexType.INVERTED_INDEX)) {
       readCopyBuffers(reader, writer, column, ColumnIndexType.INVERTED_INDEX);

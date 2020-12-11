@@ -42,7 +42,6 @@ import org.apache.pinot.core.io.readerwriter.PinotDataBufferMemoryManager;
 import org.apache.pinot.core.realtime.impl.RealtimeSegmentConfig;
 import org.apache.pinot.core.realtime.impl.RealtimeSegmentStatsHistory;
 import org.apache.pinot.core.realtime.impl.ThreadSafeMutableRoaringBitmap;
-import org.apache.pinot.core.segment.index.readers.MutableDictionary;
 import org.apache.pinot.core.realtime.impl.dictionary.BaseOffHeapMutableDictionary;
 import org.apache.pinot.core.realtime.impl.dictionary.MutableDictionaryFactory;
 import org.apache.pinot.core.realtime.impl.forward.FixedByteMVMutableForwardIndex;
@@ -60,6 +59,8 @@ import org.apache.pinot.core.segment.index.metadata.SegmentMetadata;
 import org.apache.pinot.core.segment.index.metadata.SegmentMetadataImpl;
 import org.apache.pinot.core.segment.index.readers.BloomFilterReader;
 import org.apache.pinot.core.segment.index.readers.InvertedIndexReader;
+import org.apache.pinot.core.segment.index.readers.JsonIndexReader;
+import org.apache.pinot.core.segment.index.readers.MutableDictionary;
 import org.apache.pinot.core.segment.index.readers.MutableForwardIndex;
 import org.apache.pinot.core.segment.index.readers.ValidDocIndexReader;
 import org.apache.pinot.core.segment.index.readers.ValidDocIndexReaderImpl;
@@ -325,10 +326,10 @@ public class MutableSegmentImpl implements MutableSegment {
       // Null value vector
       MutableNullValueVector nullValueVector = _nullHandlingEnabled ? new MutableNullValueVector() : null;
 
-      // TODO: Support range index and bloom filter for mutable segment
+      // TODO: Support range index, json index and bloom filter for mutable segment
       _indexContainerMap.put(column,
           new IndexContainer(fieldSpec, partitionFunction, partitions, new NumValuesInfo(), forwardIndex, dictionary,
-              invertedIndexReader, null, textIndex, null, nullValueVector));
+              invertedIndexReader, null, textIndex, null, null, nullValueVector));
     }
 
     if (_realtimeLuceneReaders != null) {
@@ -743,8 +744,8 @@ public class MutableSegmentImpl implements MutableSegment {
   /**
    * Helper method to read the value for the given document id.
    */
-  private static Object getValue(int docId, MutableForwardIndex forwardIndex,
-      @Nullable MutableDictionary dictionary, int maxNumMultiValues) {
+  private static Object getValue(int docId, MutableForwardIndex forwardIndex, @Nullable MutableDictionary dictionary,
+      int maxNumMultiValues) {
     if (dictionary != null) {
       // Dictionary based
       if (forwardIndex.isSingleValue()) {
@@ -1036,6 +1037,7 @@ public class MutableSegmentImpl implements MutableSegment {
     final RealtimeInvertedIndexReader _invertedIndex;
     final InvertedIndexReader _rangeIndex;
     final RealtimeLuceneTextIndexReader _textIndex;
+    final JsonIndexReader _jsonIndex;
     final BloomFilterReader _bloomFilter;
     final MutableNullValueVector _nullValueVector;
 
@@ -1050,7 +1052,8 @@ public class MutableSegmentImpl implements MutableSegment {
         @Nullable Set<Integer> partitions, NumValuesInfo numValuesInfo, MutableForwardIndex forwardIndex,
         @Nullable MutableDictionary dictionary, @Nullable RealtimeInvertedIndexReader invertedIndex,
         @Nullable InvertedIndexReader rangeIndex, @Nullable RealtimeLuceneTextIndexReader textIndex,
-        @Nullable BloomFilterReader bloomFilter, @Nullable MutableNullValueVector nullValueVector) {
+        @Nullable JsonIndexReader jsonIndex, @Nullable BloomFilterReader bloomFilter,
+        @Nullable MutableNullValueVector nullValueVector) {
       _fieldSpec = fieldSpec;
       _partitionFunction = partitionFunction;
       _partitions = partitions;
@@ -1060,6 +1063,7 @@ public class MutableSegmentImpl implements MutableSegment {
       _invertedIndex = invertedIndex;
       _rangeIndex = rangeIndex;
       _textIndex = textIndex;
+      _jsonIndex = jsonIndex;
       _bloomFilter = bloomFilter;
       _nullValueVector = nullValueVector;
     }
@@ -1067,7 +1071,7 @@ public class MutableSegmentImpl implements MutableSegment {
     DataSource toDataSource() {
       return new MutableDataSource(_fieldSpec, _numDocsIndexed, _numValuesInfo._numValues,
           _numValuesInfo._maxNumValuesPerMVEntry, _partitionFunction, _partitions, _minValue, _maxValue, _forwardIndex,
-          _dictionary, _invertedIndex, _rangeIndex, _textIndex, _bloomFilter, _nullValueVector);
+          _dictionary, _invertedIndex, _rangeIndex, _textIndex, _jsonIndex, _bloomFilter, _nullValueVector);
     }
 
     @Override
@@ -1105,6 +1109,13 @@ public class MutableSegmentImpl implements MutableSegment {
           _textIndex.close();
         } catch (Exception e) {
           _logger.error("Caught exception while closing text index for column: {}, continuing with error", column, e);
+        }
+      }
+      if (_jsonIndex != null) {
+        try {
+          _jsonIndex.close();
+        } catch (Exception e) {
+          _logger.error("Caught exception while closing json index for column: {}, continuing with error", column, e);
         }
       }
       if (_bloomFilter != null) {

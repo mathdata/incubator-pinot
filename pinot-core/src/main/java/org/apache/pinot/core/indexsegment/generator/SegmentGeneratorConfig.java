@@ -70,6 +70,7 @@ public class SegmentGeneratorConfig {
   private Map<String, ChunkCompressorFactory.CompressionType> _rawIndexCompressionType = new HashMap<>();
   private List<String> _invertedIndexCreationColumns = new ArrayList<>();
   private List<String> _textIndexCreationColumns = new ArrayList<>();
+  private List<String> _jsonIndexCreationColumns = new ArrayList<>();
   private List<String> _columnSortOrder = new ArrayList<>();
   private List<String> _varLengthDictionaryColumns = new ArrayList<>();
   private String _inputFilePath = null;
@@ -164,10 +165,16 @@ public class SegmentGeneratorConfig {
       //       - Set 'generate.inverted.index.before.push' to 'true' in custom config (deprecated)
       //       - Enable 'createInvertedIndexDuringSegmentGeneration' in indexing config
       // TODO: Clean up the table configs with the deprecated settings, and always use the one in the indexing config
-      Map<String, String> customConfigs = tableConfig.getCustomConfig().getCustomConfigs();
-      if ((customConfigs != null && Boolean.parseBoolean(customConfigs.get("generate.inverted.index.before.push")))
-          || indexingConfig.isCreateInvertedIndexDuringSegmentGeneration()) {
-        _invertedIndexCreationColumns = indexingConfig.getInvertedIndexColumns();
+      if (indexingConfig.getInvertedIndexColumns() != null) {
+        Map<String, String> customConfigs = tableConfig.getCustomConfig().getCustomConfigs();
+        if ((customConfigs != null && Boolean.parseBoolean(customConfigs.get("generate.inverted.index.before.push")))
+            || indexingConfig.isCreateInvertedIndexDuringSegmentGeneration()) {
+          _invertedIndexCreationColumns.addAll(indexingConfig.getInvertedIndexColumns());
+        }
+      }
+
+      if (indexingConfig.getJsonIndexColumns() != null) {
+        _jsonIndexCreationColumns.addAll(indexingConfig.getJsonIndexColumns());
       }
 
       List<FieldConfig> fieldConfigList = tableConfig.getFieldConfigList();
@@ -271,6 +278,10 @@ public class SegmentGeneratorConfig {
    */
   public List<String> getTextIndexCreationColumns() {
     return _textIndexCreationColumns;
+  }
+
+  public List<String> getJsonIndexCreationColumns() {
+    return _jsonIndexCreationColumns;
   }
 
   public List<String> getColumnSortOrder() {

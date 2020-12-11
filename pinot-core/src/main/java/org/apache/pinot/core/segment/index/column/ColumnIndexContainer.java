@@ -23,6 +23,7 @@ import org.apache.pinot.core.segment.index.readers.BloomFilterReader;
 import org.apache.pinot.core.segment.index.readers.Dictionary;
 import org.apache.pinot.core.segment.index.readers.ForwardIndexReader;
 import org.apache.pinot.core.segment.index.readers.InvertedIndexReader;
+import org.apache.pinot.core.segment.index.readers.JsonIndexReader;
 import org.apache.pinot.core.segment.index.readers.NullValueVectorReaderImpl;
 import org.apache.pinot.core.segment.index.readers.TextIndexReader;
 
@@ -53,19 +54,22 @@ public interface ColumnIndexContainer extends Closeable {
   TextIndexReader getTextIndex();
 
   /**
+   * Returns the json index for the column, or {@code null} if it does not exist.
+   */
+  JsonIndexReader getJsonIndex();
+
+  /**
    * Returns the dictionary for the column, or {@code null} if it does not exist.
    */
   Dictionary getDictionary();
 
   /**
-   *
-   * @return Get the bloom filter for the column, or {@code null} if it does not exist.
+   * Returns the bloom filter for the column, or {@code null} if it does not exist.
    */
   BloomFilterReader getBloomFilter();
 
   /**
-   *
-   * @return Get the null value vector for the column, or {@code null} if it does not exist.
+   * Returns the null value vector for the column, or {@code null} if it does not exist.
    */
   NullValueVectorReaderImpl getNullValueVector();
 }

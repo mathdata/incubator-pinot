@@ -23,6 +23,7 @@ import org.apache.pinot.core.segment.index.readers.BloomFilterReader;
 import org.apache.pinot.core.segment.index.readers.Dictionary;
 import org.apache.pinot.core.segment.index.readers.ForwardIndexReader;
 import org.apache.pinot.core.segment.index.readers.InvertedIndexReader;
+import org.apache.pinot.core.segment.index.readers.JsonIndexReader;
 import org.apache.pinot.core.segment.index.readers.NullValueVectorReader;
 import org.apache.pinot.core.segment.index.readers.TextIndexReader;
 
@@ -65,6 +66,12 @@ public interface DataSource {
    */
   @Nullable
   TextIndexReader getTextIndex();
+
+  /**
+   * Returns the json index for the column if exists, or {@code null} if not.
+   */
+  @Nullable
+  JsonIndexReader getJsonIndex();
 
   /**
    * Returns the bloom filter for the column if exists, or {@code null} if not.

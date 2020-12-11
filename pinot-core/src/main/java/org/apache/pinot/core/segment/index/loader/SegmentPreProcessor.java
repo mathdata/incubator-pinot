@@ -31,6 +31,7 @@ import org.apache.pinot.core.segment.index.loader.columnminmaxvalue.ColumnMinMax
 import org.apache.pinot.core.segment.index.loader.defaultcolumn.DefaultColumnHandler;
 import org.apache.pinot.core.segment.index.loader.defaultcolumn.DefaultColumnHandlerFactory;
 import org.apache.pinot.core.segment.index.loader.invertedindex.InvertedIndexHandler;
+import org.apache.pinot.core.segment.index.loader.invertedindex.JsonIndexHandler;
 import org.apache.pinot.core.segment.index.loader.invertedindex.RangeIndexHandler;
 import org.apache.pinot.core.segment.index.loader.invertedindex.TextIndexHandler;
 import org.apache.pinot.core.segment.index.metadata.SegmentMetadataImpl;
@@ -113,12 +114,18 @@ public class SegmentPreProcessor implements AutoCloseable {
           new RangeIndexHandler(_indexDir, _segmentMetadata, _indexLoadingConfig, segmentWriter);
       rangeIndexHandler.createRangeIndices();
 
+      // Create text indices according to the index config.
       Set<String> textIndexColumns = _indexLoadingConfig.getTextIndexColumns();
       if (textIndexColumns.size() > 0) {
         TextIndexHandler textIndexHandler =
             new TextIndexHandler(_indexDir, _segmentMetadata, textIndexColumns, segmentWriter);
         textIndexHandler.createTextIndexesOnSegmentLoad();
       }
+
+      // Create json indices according to the index config.
+      JsonIndexHandler jsonIndexHandler =
+          new JsonIndexHandler(_indexDir, _segmentMetadata, _indexLoadingConfig, segmentWriter);
+      jsonIndexHandler.createJsonIndices();
 
       // Create bloom filter if required
       BloomFilterHandler bloomFilterHandler =

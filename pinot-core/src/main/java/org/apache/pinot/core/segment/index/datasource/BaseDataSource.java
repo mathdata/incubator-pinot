@@ -25,6 +25,7 @@ import org.apache.pinot.core.segment.index.readers.BloomFilterReader;
 import org.apache.pinot.core.segment.index.readers.Dictionary;
 import org.apache.pinot.core.segment.index.readers.ForwardIndexReader;
 import org.apache.pinot.core.segment.index.readers.InvertedIndexReader;
+import org.apache.pinot.core.segment.index.readers.JsonIndexReader;
 import org.apache.pinot.core.segment.index.readers.NullValueVectorReader;
 import org.apache.pinot.core.segment.index.readers.TextIndexReader;
 
@@ -36,19 +37,22 @@ public abstract class BaseDataSource implements DataSource {
   private final InvertedIndexReader<?> _invertedIndex;
   private final InvertedIndexReader<?> _rangeIndex;
   private final TextIndexReader _textIndex;
+  private final JsonIndexReader _jsonIndex;
   private final BloomFilterReader _bloomFilter;
   private final NullValueVectorReader _nullValueVector;
 
   public BaseDataSource(DataSourceMetadata dataSourceMetadata, ForwardIndexReader<?> forwardIndex,
       @Nullable Dictionary dictionary, @Nullable InvertedIndexReader<?> invertedIndex,
       @Nullable InvertedIndexReader<?> rangeIndex, @Nullable TextIndexReader textIndex,
-      @Nullable BloomFilterReader bloomFilter, @Nullable NullValueVectorReader nullValueVector) {
+      @Nullable JsonIndexReader jsonIndex, @Nullable BloomFilterReader bloomFilter,
+      @Nullable NullValueVectorReader nullValueVector) {
     _dataSourceMetadata = dataSourceMetadata;
     _forwardIndex = forwardIndex;
     _dictionary = dictionary;
     _invertedIndex = invertedIndex;
     _rangeIndex = rangeIndex;
     _textIndex = textIndex;
+    _jsonIndex = jsonIndex;
     _bloomFilter = bloomFilter;
     _nullValueVector = nullValueVector;
   }
@@ -85,6 +89,12 @@ public abstract class BaseDataSource implements DataSource {
   @Override
   public TextIndexReader getTextIndex() {
     return _textIndex;
+  }
+
+  @Nullable
+  @Override
+  public JsonIndexReader getJsonIndex() {
+    return _jsonIndex;
   }
 
   @Nullable
