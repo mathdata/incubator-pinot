@@ -18,6 +18,7 @@
  */
 package org.apache.pinot.controller.helix.core.minion.generator;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.base.Preconditions;
 import java.io.File;
 import java.io.IOException;
@@ -82,7 +83,9 @@ public class SegmentGenerationAndPushTaskGenerator implements PinotTaskGenerator
       Preconditions.checkNotNull(tableTaskConfig);
       Map<String, String> taskConfigs =
           tableTaskConfig.getConfigsForTaskType(MinionConstants.SegmentGenerationAndPushTask.TASK_TYPE);
-      Preconditions.checkNotNull(taskConfigs, "Task config shouldn't be null for Table: {}", offlineTableName);
+      if (tableConfigs == null) {
+        LOGGER.warn("Skip null task config for table: {}", offlineTableName);
+      }
 
       // Get max number of tasks for this table
       int tableMaxNumTasks;
@@ -90,7 +93,7 @@ public class SegmentGenerationAndPushTaskGenerator implements PinotTaskGenerator
       if (tableMaxNumTasksConfig != null) {
         try {
           tableMaxNumTasks = Integer.parseInt(tableMaxNumTasksConfig);
-        } catch (Exception e) {
+        } catch (NumberFormatException e) {
           tableMaxNumTasks = Integer.MAX_VALUE;
         }
       } else {
@@ -110,8 +113,6 @@ public class SegmentGenerationAndPushTaskGenerator implements PinotTaskGenerator
       for (Map<String, String> batchConfigMap : batchConfigMaps) {
         try {
           URI inputDirURI = getDirectoryUri(batchConfigMap.get(BatchConfigProperties.INPUT_DIR_URI));
-          URI outputDirURI = getDirectoryUri(batchConfigMap.get(BatchConfigProperties.OUTPUT_DIR_URI));
-
           updateRecordReaderConfigs(batchConfigMap);
           List<OfflineSegmentZKMetadata> offlineSegmentsMetadata = Collections.emptyList();
           // For append mode, we don't create segments for input file URIs already created.
@@ -121,21 +122,9 @@ public class SegmentGenerationAndPushTaskGenerator implements PinotTaskGenerator
           List<URI> inputFileURIs = getInputFilesFromDirectory(batchConfigMap, inputDirURI,
               getExistingSegmentInputFiles(offlineSegmentsMetadata));
 
-          String pushMode = IngestionConfigUtils.getPushMode(batchConfigMap);
           for (URI inputFileURI : inputFileURIs) {
-            Map<String, String> singleFileGenerationTaskConfig = new HashMap<>(batchConfigMap);
-            singleFileGenerationTaskConfig.put(BatchConfigProperties.INPUT_FILE_URI, inputFileURI.toString());
-            URI outputSegmentDirURI = getRelativeOutputPath(inputDirURI, inputFileURI, outputDirURI);
-            singleFileGenerationTaskConfig.put(BatchConfigProperties.OUTPUT_SEGMENT_DIR_URI, outputSegmentDirURI.toString());
-            singleFileGenerationTaskConfig
-                .put(BatchConfigProperties.SCHEMA, JsonUtils.objectToString(_clusterInfoAccessor.getTableSchema(offlineTableName)));
-            singleFileGenerationTaskConfig
-                .put(BatchConfigProperties.TABLE_CONFIGS, JsonUtils.objectToString(_clusterInfoAccessor.getTableConfig(offlineTableName)));
-            singleFileGenerationTaskConfig.put(BatchConfigProperties.SEQUENCE_ID, String.valueOf(tableNumTasks));
-            singleFileGenerationTaskConfig.put(BatchConfigProperties.SEGMENT_NAME_GENERATOR_TYPE, BatchConfigProperties.SegmentNameGeneratorType.SIMPLE);
-            singleFileGenerationTaskConfig.put(BatchConfigProperties.PUSH_MODE, pushMode);
-            singleFileGenerationTaskConfig.put(BatchConfigProperties.PUSH_CONTROLLER_URI, _clusterInfoAccessor.getVipUrl());
-            // Only submit raw data files with timestamp larger than checkpoint
+            Map<String, String> singleFileGenerationTaskConfig =
+                getSingleFileGenerationTaskConfig(offlineTableName, tableNumTasks, batchConfigMap, inputFileURI);
             pinotTaskConfigs.add(new PinotTaskConfig(MinionConstants.SegmentGenerationAndPushTask.TASK_TYPE,
                 singleFileGenerationTaskConfig));
             tableNumTasks++;
@@ -152,6 +141,29 @@ public class SegmentGenerationAndPushTaskGenerator implements PinotTaskGenerator
       }
     }
     return pinotTaskConfigs;
+  }
+
+  private Map<String, String> getSingleFileGenerationTaskConfig(String offlineTableName, int sequenceID,
+      Map<String, String> batchConfigMap, URI inputFileURI)
+      throws JsonProcessingException, URISyntaxException {
+
+    URI inputDirURI = getDirectoryUri(batchConfigMap.get(BatchConfigProperties.INPUT_DIR_URI));
+    URI outputDirURI = getDirectoryUri(batchConfigMap.get(BatchConfigProperties.OUTPUT_DIR_URI));
+    String pushMode = IngestionConfigUtils.getPushMode(batchConfigMap);
+
+    Map<String, String> singleFileGenerationTaskConfig = new HashMap<>(batchConfigMap);
+    singleFileGenerationTaskConfig.put(BatchConfigProperties.INPUT_FILE_URI, inputFileURI.toString());
+    URI outputSegmentDirURI = getRelativeOutputPath(inputDirURI, inputFileURI, outputDirURI);
+    singleFileGenerationTaskConfig.put(BatchConfigProperties.OUTPUT_SEGMENT_DIR_URI, outputSegmentDirURI.toString());
+    singleFileGenerationTaskConfig
+        .put(BatchConfigProperties.SCHEMA, JsonUtils.objectToString(_clusterInfoAccessor.getTableSchema(offlineTableName)));
+    singleFileGenerationTaskConfig
+        .put(BatchConfigProperties.TABLE_CONFIGS, JsonUtils.objectToString(_clusterInfoAccessor.getTableConfig(offlineTableName)));
+    singleFileGenerationTaskConfig.put(BatchConfigProperties.SEQUENCE_ID, String.valueOf(sequenceID));
+    singleFileGenerationTaskConfig.put(BatchConfigProperties.SEGMENT_NAME_GENERATOR_TYPE, BatchConfigProperties.SegmentNameGeneratorType.SIMPLE);
+    singleFileGenerationTaskConfig.put(BatchConfigProperties.PUSH_MODE, pushMode);
+    singleFileGenerationTaskConfig.put(BatchConfigProperties.PUSH_CONTROLLER_URI, _clusterInfoAccessor.getVipUrl());
+    return singleFileGenerationTaskConfig;
   }
 
   private void updateRecordReaderConfigs(Map<String, String> batchConfigMap) {
